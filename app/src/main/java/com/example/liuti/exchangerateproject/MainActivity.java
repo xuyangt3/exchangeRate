@@ -20,13 +20,11 @@ import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
 import com.jjoe64.graphview.GridLabelRenderer;
 
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.NumberPicker;
 import android.widget.Toast;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
@@ -109,9 +107,6 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
             int t = Integer.parseInt(st.nextToken());
             selCurrencyLi.add(t);
         }
-
-        Toast.makeText(MainActivity.this, selCurrencyLi.toString(),
-                Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -151,7 +146,7 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
                         .setPositiveButton(R.string.select, new DialogInterface.OnClickListener() {
                             public void onClick(final DialogInterface dialog, final int id) {
                                 selectedBase = tselectedBase[0];
-                                Toast.makeText(MainActivity.this, Integer.toString(selectedBase), Toast.LENGTH_LONG).show();
+                                Toast.makeText(MainActivity.this, currencyArr[selectedBase], Toast.LENGTH_LONG).show();
                             }
                         })
                         .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
@@ -164,7 +159,6 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
                                     @Override
                                     public void onClick(final DialogInterface dialog, final int id) {
                                         tselectedBase[0] = id;
-                                        Toast.makeText(MainActivity.this, Arrays.toString(tselectedBase), Toast.LENGTH_LONG).show();
                                     }
                                 })
                         .create()
@@ -229,7 +223,7 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
             }
         });
 
-        Button selectTime = findViewById(R.id.time);
+        Button selectTime = findViewById(R.id.selectTime);
         class selTimeListener implements View.OnClickListener, DialogInterface.OnClickListener {
             private Calendar cld = Calendar.getInstance();
             private NumberPicker startYear, startMonth;
@@ -340,8 +334,8 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
 
         selectTime.setOnClickListener(new selTimeListener());
 
-        Button start = findViewById(R.id.startAPI);
-        start.setOnClickListener(new View.OnClickListener() {
+        Button startAPI = findViewById(R.id.startAPI);
+        startAPI.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 startAPICall();
             }
@@ -357,49 +351,64 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
         graph.setVisibility(View.INVISIBLE);
         graph.removeAllSeries();
 
-        Log.d(TAG, response.toString());
-
         JSONObject rates = null;
         try {
             rates = response.getJSONObject("rates");
 
-            String[] datesArr;
-            {
-                Iterator<String> itr = rates.keys();
-                ArrayList<String> datesAL = new ArrayList<String>();
-                while (itr.hasNext()) {
-                    datesAL.add(itr.next());
-                }
-                datesArr = datesAL.toArray(new String[0]);
-            }
-            Arrays.sort(datesArr);
-
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-            Date[] dates = new Date[datesArr.length];
-            int[] colors = getResources().getIntArray(R.array.rainbow);
-            for (int i = 0; i < datesArr.length; i++) {
-                dates[i] = sdf.parse(datesArr[i]);
-            }
-            for (int i = 0; i < selCurrencyLi.size(); i++) {
-                LineGraphSeries<DataPoint> ser = new LineGraphSeries<>();
-                String symbol = currencyArr[selCurrencyLi.get(i)];
-                for (int j = 0; j < datesArr.length; j++) {
-                    DataPoint dp = new DataPoint(
-                            dates[j],
-                            rates.getJSONObject(datesArr[j]).getDouble(symbol));
-                    ser.appendData(dp, true, datesArr.length, true);
+
+            Long[] datesArr;
+            {
+                long oneDay = 24 * 60 *60 * 1000;
+                Iterator<String> itr = rates.keys();
+                ArrayList<Long> datesAL = new ArrayList<>((int)((
+                        end.getTime() - start.getTime()) / oneDay / 1.4));
+                while (itr.hasNext()) {
+                    datesAL.add(sdf.parse(itr.next()).getTime());
                 }
+                datesArr = datesAL.toArray(new Long[0]);
+            }
+            Arrays.sort(datesArr);
+            int index = 0;
+            {
+                long interval = (end.getTime() - start.getTime()) >>> 7;
+                Long[] tempDates = new Long[129];
+                long last = 0L;
+                for (int i = 0; i < datesArr.length; i++) {
+                    if (datesArr[i] - last > interval) {
+                        last = datesArr[i];
+                        tempDates[index] = datesArr[i];
+                        index++;
+                    }
+                }
+                datesArr = tempDates;
+            }
+
+            int[] colors = getResources().getIntArray(R.array.rainbow);
+            String[] dateKeys = new String[index];
+            for (int i = 0; i < index; i++) {
+                dateKeys[i] = sdf.format(new Date(datesArr[i]));
+            }
+            Long l =1L;
+            DataPoint[] data = new DataPoint[index];
+            for (int i = 0; i < selCurrencyLi.size(); i++) {
+                String symbol = currencyArr[selCurrencyLi.get(i)];
+                for (int j = 0; j < index; j++) {
+                    data[j] = new DataPoint(
+                            datesArr[j],
+                            rates.getJSONObject(dateKeys[j]).getDouble(symbol));
+                }
+                LineGraphSeries<DataPoint> ser = new LineGraphSeries<>(data);
                 ser.setTitle(symbol);
                 ser.setColor(colors[i]);
                 graph.addSeries(ser);
             }
 
-
             // enable scaling and scrolling
             Viewport vpt = graph.getViewport();
-            vpt.setMinX((double) dates[0].getTime());
-            vpt.setMaxX((double) dates[dates.length - 1].getTime());
+            vpt.setMinX((double) datesArr[0]);
+            vpt.setMaxX((double) datesArr[index - 1]);
             vpt.setScalable(true);
             vpt.setScalableY(true);
         } catch (Exception e) {
@@ -415,7 +424,6 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
             public String formatLabel(double value, boolean isValueX) {
                 if (isValueX) {
                     this.mCalendar.setTimeInMillis((long) value);
-                    Log.e(TAG, Double.toString(mViewport.getMaxX(false)));
                     if (mViewport.getMaxX(false)
                             - mViewport.getMinX(false) < threeMonths) {
                         return small.format(this.mCalendar.getTimeInMillis());
