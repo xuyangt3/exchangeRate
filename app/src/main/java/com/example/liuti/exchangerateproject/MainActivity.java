@@ -83,10 +83,7 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
 //            return;
 //        }
         StringBuilder str = new StringBuilder();
-        str.append(5).append(",");
         str.append(8).append(",");
-        str.append(9).append(",");
-        str.append(17).append(",");
         pref.edit()
                 .clear()
                 .putString(Selected_Currencies, str.toString())
@@ -358,39 +355,24 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-            Long[] datesArr;
-            {
-                long oneDay = 24 * 60 *60 * 1000;
-                Iterator<String> itr = rates.keys();
-                ArrayList<Long> datesAL = new ArrayList<>((int)((
-                        end.getTime() - start.getTime()) / oneDay / 1.4));
-                while (itr.hasNext()) {
-                    datesAL.add(sdf.parse(itr.next()).getTime());
-                }
-                datesArr = datesAL.toArray(new Long[0]);
-            }
-            Arrays.sort(datesArr);
+            final int dataSize = 64;
+            String[] dateKeys = new String[dataSize];
             int index = 0;
-            {
-                long interval = (end.getTime() - start.getTime()) >>> 7;
-                Long[] tempDates = new Long[129];
-                long last = 0L;
-                for (int i = 0; i < datesArr.length; i++) {
-                    if (datesArr[i] - last > interval) {
-                        last = datesArr[i];
-                        tempDates[index] = datesArr[i];
-                        index++;
-                    }
-                }
-                datesArr = tempDates;
+
+            Iterator<String> itr = rates.keys();
+            while (itr.hasNext() && index < dataSize) {
+                dateKeys[index] = itr.next();
+                index++;
+            }
+            Arrays.sort(dateKeys, 0, index);
+
+            long[] datesArr = new long[index];
+            for (int i = 0; i < index; i++) {
+                datesArr[i] = sdf.parse(dateKeys[i]).getTime();
             }
 
             int[] colors = getResources().getIntArray(R.array.rainbow);
-            String[] dateKeys = new String[index];
-            for (int i = 0; i < index; i++) {
-                dateKeys[i] = sdf.format(new Date(datesArr[i]));
-            }
-            Long l =1L;
+
             DataPoint[] data = new DataPoint[index];
             for (int i = 0; i < selCurrencyLi.size(); i++) {
                 String symbol = currencyArr[selCurrencyLi.get(i)];
