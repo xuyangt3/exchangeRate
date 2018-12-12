@@ -83,10 +83,7 @@ public class MainActivity extends AppCompatActivity implements Response.Listener
 //            return;
 //        }
         StringBuilder str = new StringBuilder();
-        str.append(5).append(",");
         str.append(8).append(",");
-        str.append(9).append(",");
-        str.append(17).append(",");
         pref.edit()
                 .clear()
                 .putString(Selected_Currencies, str.toString())
